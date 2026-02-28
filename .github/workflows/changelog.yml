@@ -1,24 +1,31 @@
 name: Generate Changelog
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
     branches:
       - master
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
 
+concurrency:
+  group: changelog-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   changelog:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -44,14 +51,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit changelog
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      - name: Commit changelog to PR branch
         run: |
           set -euo pipefail
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+
+          if [ ! -f CHANGELOG.md ]; then
+            echo "CHANGELOG.md was not generated (no releasable changes)."
+            exit 0
+          fi
+
           git add CHANGELOG.md
-          git commit -m "chore: update changelog [skip ci]" || echo "No changes to commit"
-          git push
+          if git diff --cached --quiet -- CHANGELOG.md; then
+            echo "No changelog changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update changelog [skip ci]"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

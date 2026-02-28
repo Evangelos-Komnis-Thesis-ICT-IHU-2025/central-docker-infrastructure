@@ -1,0 +1,30 @@
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infrastructure/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+
+changelog:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "CHANGELOG.md"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "backend/**"
+
+player:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "player/**"
