@@ -59,9 +59,9 @@ jobs:
 
           required_keys=(
             ELASTIC_VERSION
+            MINIO_IMAGE
             MINIO_ROOT_USER
             MINIO_ROOT_PASSWORD
-            DOCKER_GID
           )
 
           for key in "${required_keys[@]}"; do
@@ -76,7 +76,6 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm \
-            --add-host jenkins:127.0.0.1 \
             --add-host kibana:127.0.0.1 \
             -v "${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
             nginx:1.27-alpine \

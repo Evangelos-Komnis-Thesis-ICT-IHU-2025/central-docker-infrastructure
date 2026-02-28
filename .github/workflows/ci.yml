@@ -63,9 +63,9 @@ jobs:
 
           required_keys=(
             ELASTIC_VERSION
+            MINIO_IMAGE
             MINIO_ROOT_USER
             MINIO_ROOT_PASSWORD
-            DOCKER_GID
           )
 
           for key in "${required_keys[@]}"; do
@@ -80,21 +80,10 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm \
-            --add-host jenkins:127.0.0.1 \
             --add-host kibana:127.0.0.1 \
             -v "${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
             nginx:1.27-alpine \
             nginx -t -c /etc/nginx/nginx.conf
-
-      - name: Build Jenkins image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ steps.paths.outputs.infra_dir }}/jenkins
-          file: ${{ steps.paths.outputs.infra_dir }}/jenkins/Dockerfile
-          tags: scorm/jenkins:ci
-          load: true
-          push: false
-          provenance: false
 
   integration:
     name: Compose Integration and Health Checks
@@ -169,7 +158,6 @@ jobs:
           # Publicly exposed services.
           retry "Kibana" 60 5 curl -fsS -o /dev/null http://127.0.0.1:5601/api/status
           retry "MinIO API" 40 3 curl -fsS -o /dev/null http://127.0.0.1:9000/minio/health/live
-          retry "Jenkins" 60 5 curl -fsS -o /dev/null http://127.0.0.1:8080/login
 
       - name: Ensure no container exited unexpectedly
         working-directory: ${{ steps.paths.outputs.infra_dir }}
