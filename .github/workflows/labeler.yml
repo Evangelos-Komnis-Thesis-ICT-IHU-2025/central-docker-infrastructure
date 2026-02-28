@@ -1,0 +1,28 @@
+name: "PR Labeler with Auto-Create"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set labels
+        id: labels
+        run: |
+          echo "labels=backend,player,infra,changelog,ci,docs" >> $GITHUB_ENV
+
+      - name: Create missing labels
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: ${{ env.labels }}
+
+      - name: Label PR
+        uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
