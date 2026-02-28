@@ -6,24 +6,56 @@ on:
     branches:
       - master
 
+permissions:
+  contents: write
+
+concurrency:
+  group: infrastructure-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
         run: |
-          npm install --save-dev standard-version
+          npm install --no-save standard-version
+
+      - name: Configure Git identity
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Validate package version metadata
+        run: |
+          set -euo pipefail
+
+          if [ ! -f package.json ]; then
+            echo "package.json is missing. standard-version requires a Node package manifest."
+            exit 1
+          fi
+
+          VERSION="$(node -p "try { require('./package.json').version || '' } catch (e) { '' }")"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ] || [ "$VERSION" = "undefined" ]; then
+            echo "package.json must contain a valid version field before running release."
+            exit 1
+          fi
 
       - name: Release new version
         run: |
+          set -euo pipefail
           npx standard-version --release-as patch
           git push --follow-tags
         env:
