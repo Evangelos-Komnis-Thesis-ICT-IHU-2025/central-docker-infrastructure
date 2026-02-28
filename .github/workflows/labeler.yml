@@ -1,0 +1,55 @@
+name: "PR Labeler with Auto-Create and Commit Labels"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate gh CLI
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          echo $PAT_TOKEN | gh auth login --with-token
+
+      - name: Ensure labels exist
+        run: |
+          declare -A labels
+          labels=( 
+            ["backend"]="1f77b4"
+            ["player"]="ff7f0e"
+            ["infra"]="2ca02c"
+            ["changelog"]="d62728"
+            ["ci"]="9467bd"
+            ["docs"]="8c564b"
+            ["feature"]="00ff00"
+            ["bugfix"]="ff0000"
+            ["maintenance"]="ffa500"
+          )
+          for label in "${!labels[@]}"; do
+            gh label create "$label" --color "${labels[$label]}" --description "Auto label for $label" || echo "Label $label exists"
+          done
+
+      - name: File-based PR labeling
+        uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.PAT_TOKEN }}"
+
+      - name: Commit message labeling
+        run: |
+          PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+          COMMITS=$(gh pr view $PR_NUMBER --json commits -q ".commits[].commit.message")
+          for commit in $COMMITS; do
+            if [[ "$commit" == feat* ]]; then
+              gh pr edit $PR_NUMBER --add-label feature
+            elif [[ "$commit" == fix* ]]; then
+              gh pr edit $PR_NUMBER --add-label bugfix
+            elif [[ "$commit" == chore* ]]; then
+              gh pr edit $PR_NUMBER --add-label maintenance
+            fi
+          done
