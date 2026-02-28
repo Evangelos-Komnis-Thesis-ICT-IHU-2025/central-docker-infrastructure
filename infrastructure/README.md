@@ -1,7 +1,6 @@
 # SCORM Engine Central Infrastructure
 
 Production-ready Docker Compose foundation for SCORM Engine platform services:
-- Jenkins (LTS)
 - Elasticsearch (single node, dev profile)
 - Kibana
 - MinIO (S3-compatible object storage)
@@ -17,8 +16,6 @@ infrastructure/
   .env
   nginx/
     nginx.conf
-  jenkins/
-    Dockerfile
   README.md
 ```
 
@@ -57,7 +54,6 @@ docker compose ps
 
 ## Service Endpoints
 
-- Jenkins UI: `http://localhost:8080`
 - Kibana UI: `http://localhost:5601`
 - MinIO API: `http://localhost:9000`
 - MinIO Console: `http://localhost:9001`
@@ -93,17 +89,6 @@ Service-to-service calls use container DNS names, for example:
 - Backend -> MinIO: `http://minio:9000`
 - Nginx -> Backend: `http://backend:8080`
 - Nginx -> Player: `http://player:3000`
-
-## Jenkins Notes
-
-- Jenkins data persists in named volume `scorm_jenkins_home`.
-- Docker socket is mounted for pipeline image builds:
-  - `/var/run/docker.sock:/var/run/docker.sock`
-- Set `DOCKER_GID` in `.env` to match your host docker group id:
-
-```bash
-getent group docker | cut -d: -f3
-```
 
 ## Logging Strategy (Structured Logs -> Elasticsearch)
 
@@ -141,15 +126,14 @@ Scaling considerations:
 - Keep Nginx as the single ingress or place it behind a cloud load balancer.
 - Run Elasticsearch as multi-node cluster in production.
 - Use external managed object storage or distributed MinIO for HA.
-- Jenkins controller should remain singleton; use distributed agents for build scale.
 
 ## Production Considerations
 
 - Enable TLS termination (Nginx + certificates).
 - Enable authentication and authorization for Elasticsearch/Kibana.
 - Use strong secrets from a secret manager (not plaintext `.env`).
-- Restrict MinIO and Jenkins exposure via firewall/VPN.
-- Add backup policies for `scorm_jenkins_home`, Elasticsearch data, and MinIO buckets.
+- Restrict MinIO exposure via firewall/VPN.
+- Add backup policies for Elasticsearch data and MinIO buckets.
 - Add observability: metrics, tracing, alerting, log retention lifecycle.
 - Pin and regularly patch container image versions.
 
