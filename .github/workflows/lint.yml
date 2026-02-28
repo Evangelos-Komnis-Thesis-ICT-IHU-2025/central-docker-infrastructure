@@ -25,8 +25,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve infrastructure directory
+        id: paths
+        run: |
+          set -euo pipefail
+          if [ -d "infrastructure" ] && [ -f "infrastructure/docker-compose.yml" ]; then
+            echo "infra_dir=infrastructure" >> "$GITHUB_OUTPUT"
+          elif [ -f "docker-compose.yml" ]; then
+            echo "infra_dir=." >> "$GITHUB_OUTPUT"
+          else
+            echo "Could not find docker-compose.yml in ./infrastructure or repository root."
+            ls -la
+            exit 1
+          fi
+
       - name: Validate docker-compose
-        working-directory: infrastructure
+        working-directory: ${{ steps.paths.outputs.infra_dir }}
         run: |
           set -euo pipefail
           docker compose config -q
@@ -35,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ENV_FILE="infrastructure/.env"
+          ENV_FILE="${{ steps.paths.outputs.infra_dir }}/.env"
           test -f "$ENV_FILE"
 
           if grep -nEv '^[[:space:]]*(#.*)?$|^[A-Za-z_][A-Za-z0-9_]*=.*$' "$ENV_FILE"; then
@@ -62,6 +76,6 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm \
-            -v "${GITHUB_WORKSPACE}/infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            -v "${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
             nginx:1.27-alpine \
             nginx -t -c /etc/nginx/nginx.conf
