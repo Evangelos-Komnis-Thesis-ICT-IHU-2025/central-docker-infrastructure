@@ -153,9 +153,35 @@ jobs:
           set -euo pipefail
 
           exited_services="$(docker compose ps --services --filter status=exited || true)"
-          if [ -n "$exited_services" ]; then
+          if [ -z "$exited_services" ]; then
+            exit 0
+          fi
+
+          unexpected_services=()
+          while IFS= read -r service; do
+            [ -z "$service" ] && continue
+
+            container_id="$(docker compose ps -aq "$service" | head -n1 || true)"
+            exit_code=""
+            if [ -n "$container_id" ]; then
+              exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container_id" 2>/dev/null || true)"
+            fi
+
+            if [ "$service" = "minio-init" ] && [ "$exit_code" = "0" ]; then
+              echo "Allowed completed init service: $service (exit=0)"
+              continue
+            fi
+
+            if [ -n "$exit_code" ]; then
+              unexpected_services+=("$service (exit=$exit_code)")
+            else
+              unexpected_services+=("$service")
+            fi
+          done <<< "$exited_services"
+
+          if [ "${#unexpected_services[@]}" -gt 0 ]; then
             echo "Unexpected exited services detected:"
-            echo "$exited_services"
+            printf '%s\n' "${unexpected_services[@]}"
             exit 1
           fi
 
