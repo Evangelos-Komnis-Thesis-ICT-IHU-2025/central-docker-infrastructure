@@ -3,6 +3,7 @@
 
 ### Bug Fixes
 
+* **ci:** add mock integration mode for ([34bd0d1](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/34bd0d180f89ae4718d923830912cde4f413fa6f))
 * **ci:** checkout dependent repos and ([a5f896a](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/a5f896a3b78f1704506a1bb9de866ce3119222ba))
 * **ci:** harden smoke checks with internal ([e68462f](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/e68462f5bc0ff3f8aa90fae5805203500626afe6))
 * **ci:** make compose integration ([237d29c](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/237d29c501bc141f1f6313b61e227c505f19d7b2))
