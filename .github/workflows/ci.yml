@@ -51,30 +51,7 @@ jobs:
       - name: Validate .env file structure
         run: |
           set -euo pipefail
-
-          ENV_FILE="${{ steps.paths.outputs.infra_dir }}/.env"
-          test -f "$ENV_FILE"
-
-          # Reject malformed non-comment, non-empty lines.
-          if grep -nEv '^[[:space:]]*(#.*)?$|^[A-Za-z_][A-Za-z0-9_]*=.*$' "$ENV_FILE"; then
-            echo "Invalid line(s) found in $ENV_FILE"
-            exit 1
-          fi
-
-          required_keys=(
-            ELASTIC_VERSION
-            MINIO_IMAGE
-            MINIO_ROOT_USER
-            MINIO_ROOT_PASSWORD
-          )
-
-          for key in "${required_keys[@]}"; do
-            value="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d'=' -f2- || true)"
-            if [ -z "${value}" ]; then
-              echo "Missing or empty required key in .env: ${key}"
-              exit 1
-            fi
-          done
+          bash infrastructure/scripts/validate-env.sh "${{ steps.paths.outputs.infra_dir }}"
 
       - name: Validate Nginx configuration
         run: |
@@ -127,37 +104,7 @@ jobs:
       - name: Wait for service readiness
         run: |
           set -euo pipefail
-
-          retry() {
-            local name="$1"
-            local attempts="$2"
-            local sleep_seconds="$3"
-            shift 3
-
-            local i=1
-            until "$@"; do
-              if [ "$i" -ge "$attempts" ]; then
-                echo "Service check failed: ${name}"
-                return 1
-              fi
-              echo "Waiting for ${name} (attempt ${i}/${attempts})..."
-              i=$((i + 1))
-              sleep "$sleep_seconds"
-            done
-            echo "Service is ready: ${name}"
-          }
-
-          # Pull curl image once for internal network checks.
-          docker pull curlimages/curl:8.12.1
-
-          # Elasticsearch is internal only; check from a container on scorm-network.
-          retry "Elasticsearch internal reachability" 40 3 \
-            docker run --rm --network scorm-network curlimages/curl:8.12.1 \
-            sh -c "curl -fsS http://elasticsearch:9200 >/dev/null"
-
-          # Publicly exposed services.
-          retry "Kibana" 60 5 curl -fsS -o /dev/null http://127.0.0.1:5601/api/status
-          retry "MinIO API" 40 3 curl -fsS -o /dev/null http://127.0.0.1:9000/minio/health/live
+          bash infrastructure/scripts/smoke-check.sh
 
       - name: Ensure no container exited unexpectedly
         working-directory: ${{ steps.paths.outputs.infra_dir }}

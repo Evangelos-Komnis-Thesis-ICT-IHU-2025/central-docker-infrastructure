@@ -1,15 +1,67 @@
 services:
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: scorm-nginx
+  postgres:
+    image: postgres:15-alpine
+    container_name: scorm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - scorm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: scorm-redis
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "6379:6379"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - redis-data:/data
+    networks:
+      - scorm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: ${MINIO_IMAGE}
+    container_name: scorm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - scorm-network
+
+  minio-init:
+    image: minio/mc:latest
     depends_on:
-      - kibana
       - minio
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      set -e
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done
+      mc mb --ignore-existing local/${MINIO_BUCKET_PACKAGES}
+      mc mb --ignore-existing local/${MINIO_BUCKET_EXTRACTED}
+      echo "MinIO buckets initialized"
     networks:
       - scorm-network
 
@@ -18,11 +70,26 @@ services:
     container_name: scorm-elasticsearch
     restart: unless-stopped
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
     volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - scorm-network
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION}
+    container_name: scorm-logstash
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    ports:
+      - "12201:12201/udp"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
     networks:
       - scorm-network
 
@@ -30,83 +97,125 @@ services:
     image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
     container_name: scorm-kibana
     restart: unless-stopped
-    ports:
-      - "5601:5601"
     environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - SERVER_PUBLICBASEURL=http://localhost:5601
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_PUBLICBASEURL: http://localhost:5601
     depends_on:
       - elasticsearch
-    networks:
-      - scorm-network
-
-  minio:
-    image: ${MINIO_IMAGE:-minio/minio:latest}
-    container_name: scorm-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
+      - "5601:5601"
     networks:
       - scorm-network
 
-  # -------------------------------------------------------------------------
-  # Future Backend Service (Java 21 - Spring Boot)
-  # Service Name: scorm-engine
-  # -------------------------------------------------------------------------
-  # scorm-engine:
-  #   image: ghcr.io/scorm-engine/scorm-engine:latest
-  #   container_name: scorm-engine
-  #   restart: unless-stopped
-  #   env_file:
-  #     - ./.env
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=production
-  #     - JAVA_OPTS=-Xms512m -Xmx1024m
-  #     - ELASTICSEARCH_URL=http://elasticsearch:9200
-  #     - MINIO_ENDPOINT=http://minio:9000
-  #     - MINIO_BUCKET=scorm-packages
-  #   ports:
-  #     - "8081:8080"
-  #   depends_on:
-  #     - elasticsearch
-  #     - minio
-  #   networks:
-  #     - scorm-network
+  engine:
+    build:
+      context: ../../scorm-engine
+    container_name: scorm-engine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_PACKAGES: ${MINIO_BUCKET_PACKAGES}
+      MINIO_BUCKET_EXTRACTED: ${MINIO_BUCKET_EXTRACTED}
+      ENGINE_JWT_SECRET: ${ENGINE_JWT_SECRET}
+      LAUNCH_JWT_SECRET: ${LAUNCH_JWT_SECRET}
+      PLAYER_BASE_URL: ${PLAYER_BASE_URL}
+      TZ: ${TZ}
+    ports:
+      - "8080:8080"
+    networks:
+      - scorm-network
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://127.0.0.1:12201"
+        tag: "engine"
 
-  # -------------------------------------------------------------------------
-  # Future SCORM Player Service (Node.js 20)
-  # Service Name: scorm-engine-player
-  # -------------------------------------------------------------------------
-  # scorm-engine-player:
-  #   image: ghcr.io/scorm-engine/scorm-engine-player:latest
-  #   container_name: scorm-engine-player
-  #   restart: unless-stopped
-  #   env_file:
-  #     - ./.env
-  #   environment:
-  #     - NODE_ENV=production
-  #     - BACKEND_API_URL=http://scorm-engine-backend:8080
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - scorm-engine-backend
-  #   networks:
-  #     - scorm-network
+  player:
+    build:
+      context: ../../player
+    container_name: scorm-player
+    restart: unless-stopped
+    depends_on:
+      - engine
+    environment:
+      PLAYER_ENGINE_BASE_URL: http://engine:8080
+      COMMIT_INTERVAL_MS: ${PLAYER_COMMIT_INTERVAL_MS}
+      PLAYER_CACHE_DIR: /data/packages
+      TZ: ${TZ}
+    ports:
+      - "3000:3000"
+    volumes:
+      - player-cache:/data/packages
+    networks:
+      - scorm-network
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://127.0.0.1:12201"
+        tag: "player"
+
+  lms:
+    build:
+      context: ./lms
+    container_name: scorm-lms
+    restart: unless-stopped
+    depends_on:
+      - engine
+      - player
+    working_dir: /workspace/example-lms-client/lms-laravel
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:${LMS_PORT}
+      APP_KEY: ${LMS_APP_KEY}
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: sqlite
+      SCORM_ENGINE_BASE_URL: http://engine:8080/api/v1
+      SCORM_ENGINE_ADMIN_TOKEN: ${LMS_ENGINE_ADMIN_TOKEN}
+      SCORM_PLAYER_BASE_URL: http://player:3000
+      TZ: ${TZ}
+    ports:
+      - "${LMS_PORT}:8000"
+    volumes:
+      - ../../example-lms-client/lms-laravel:/workspace/example-lms-client/lms-laravel
+    networks:
+      - scorm-network
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://127.0.0.1:12201"
+        tag: "lms"
 
 volumes:
-  elasticsearch_data:
-    name: scorm_elasticsearch_data
-  minio_data:
+  postgres-data:
+    name: scorm_postgres_data
+  redis-data:
+    name: scorm_redis_data
+  minio-data:
     name: scorm_minio_data
+  es-data:
+    name: scorm_es_data
+  player-cache:
+    name: scorm_player_cache
 
 networks:
   scorm-network:
-    external: true
     name: scorm-network
