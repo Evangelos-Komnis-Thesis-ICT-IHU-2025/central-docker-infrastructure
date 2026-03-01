@@ -4,6 +4,7 @@
 ### Bug Fixes
 
 * **ci:** checkout dependent repos and ([a5f896a](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/a5f896a3b78f1704506a1bb9de866ce3119222ba))
+* **ci:** harden smoke checks with internal ([e68462f](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/e68462f5bc0ff3f8aa90fae5805203500626afe6))
 * **ci:** make compose integration ([237d29c](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/237d29c501bc141f1f6313b61e227c505f19d7b2))
 * fix ([a7dc8e6](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/a7dc8e65b5e01bc3c32025a8ad29cb704017c201))
 
