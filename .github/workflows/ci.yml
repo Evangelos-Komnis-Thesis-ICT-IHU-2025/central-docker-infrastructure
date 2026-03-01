@@ -90,6 +90,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Checkout scorm-engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/scorm-engine
+          path: scorm-engine
+
+      - name: Checkout player
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/player
+          path: player
+
+      - name: Checkout example-lms-client
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/example-lms-client
+          path: example-lms-client
+
       - name: Create external Docker network
         run: |
           set -euo pipefail
@@ -97,6 +115,10 @@ jobs:
 
       - name: Start infrastructure stack
         working-directory: ${{ steps.paths.outputs.infra_dir }}
+        env:
+          SCORM_ENGINE_CONTEXT: ${{ github.workspace }}/scorm-engine
+          SCORM_PLAYER_CONTEXT: ${{ github.workspace }}/player
+          LMS_SOURCE_DIR: ${{ github.workspace }}/example-lms-client/lms-laravel
         run: |
           set -euo pipefail
           docker compose up -d --build --remove-orphans

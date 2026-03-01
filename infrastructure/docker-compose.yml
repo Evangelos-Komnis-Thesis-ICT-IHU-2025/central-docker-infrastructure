@@ -109,7 +109,7 @@ services:
 
   engine:
     build:
-      context: ../../scorm-engine
+      context: ${SCORM_ENGINE_CONTEXT:-../../scorm-engine}
     container_name: scorm-engine
     restart: unless-stopped
     depends_on:
@@ -148,7 +148,7 @@ services:
 
   player:
     build:
-      context: ../../player
+      context: ${SCORM_PLAYER_CONTEXT:-../../player}
     container_name: scorm-player
     restart: unless-stopped
     depends_on:
@@ -195,7 +195,7 @@ services:
     ports:
       - "${LMS_PORT}:8000"
     volumes:
-      - ../../example-lms-client/lms-laravel:/workspace/example-lms-client/lms-laravel
+      - ${LMS_SOURCE_DIR:-../../example-lms-client/lms-laravel}:/workspace/example-lms-client/lms-laravel
     networks:
       - scorm-network
     logging:
