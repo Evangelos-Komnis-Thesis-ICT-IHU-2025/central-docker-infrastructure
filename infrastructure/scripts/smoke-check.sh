@@ -13,7 +13,15 @@ if [ ! -f "${INFRA_DIR}/docker-compose.yml" ]; then
   exit 1
 fi
 
-COMPOSE_ARGS=(-f "${INFRA_DIR}/docker-compose.yml")
+COMPOSE_ARGS=()
+if [ -n "${COMPOSE_FILE:-}" ]; then
+  IFS=':' read -r -a compose_files <<< "${COMPOSE_FILE}"
+  for compose_file in "${compose_files[@]}"; do
+    COMPOSE_ARGS+=(-f "${compose_file}")
+  done
+else
+  COMPOSE_ARGS=(-f "${INFRA_DIR}/docker-compose.yml")
+fi
 if [ -f "${INFRA_DIR}/.env" ]; then
   COMPOSE_ARGS+=(--env-file "${INFRA_DIR}/.env")
 fi

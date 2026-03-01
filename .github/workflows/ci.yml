@@ -90,19 +90,43 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Select integration mode
+        id: mode
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "mode=mock" >> "$GITHUB_OUTPUT"
+            echo "COMPOSE_FILE=${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}/docker-compose.yml:${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}/docker-compose.mock.yml" >> "$GITHUB_ENV"
+            echo "SCORM_ENGINE_CONTEXT=${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}" >> "$GITHUB_ENV"
+            echo "SCORM_PLAYER_CONTEXT=${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}" >> "$GITHUB_ENV"
+            echo "LMS_SOURCE_DIR=${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}" >> "$GITHUB_ENV"
+            echo "Using mock integration mode for pull_request."
+          else
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+            echo "COMPOSE_FILE=${GITHUB_WORKSPACE}/${{ steps.paths.outputs.infra_dir }}/docker-compose.yml" >> "$GITHUB_ENV"
+            echo "SCORM_ENGINE_CONTEXT=${GITHUB_WORKSPACE}/scorm-engine" >> "$GITHUB_ENV"
+            echo "SCORM_PLAYER_CONTEXT=${GITHUB_WORKSPACE}/player" >> "$GITHUB_ENV"
+            echo "LMS_SOURCE_DIR=${GITHUB_WORKSPACE}/example-lms-client/lms-laravel" >> "$GITHUB_ENV"
+            echo "Using full integration mode for push/master."
+          fi
+
       - name: Checkout scorm-engine
+        if: steps.mode.outputs.mode == 'full'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/scorm-engine
           path: scorm-engine
 
       - name: Checkout player
+        if: steps.mode.outputs.mode == 'full'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/player
           path: player
 
       - name: Checkout example-lms-client
+        if: steps.mode.outputs.mode == 'full'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/example-lms-client
@@ -110,10 +134,6 @@ jobs:
 
       - name: Start infrastructure stack
         working-directory: ${{ steps.paths.outputs.infra_dir }}
-        env:
-          SCORM_ENGINE_CONTEXT: ${{ github.workspace }}/scorm-engine
-          SCORM_PLAYER_CONTEXT: ${{ github.workspace }}/player
-          LMS_SOURCE_DIR: ${{ github.workspace }}/example-lms-client/lms-laravel
         run: |
           set -euo pipefail
           docker compose up -d --build --remove-orphans

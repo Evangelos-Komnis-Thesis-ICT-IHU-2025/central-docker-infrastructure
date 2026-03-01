@@ -30,6 +30,18 @@ bash scripts/validate-env.sh .
 bash scripts/smoke-check.sh
 ```
 
+## CI modes
+
+- `push` to `master`: full integration using real `scorm-engine`, `player`, and `example-lms-client` repositories.
+- `pull_request`: mock integration using `docker-compose.mock.yml` to avoid cross-repo checkout dependency.
+
+Run mock mode locally:
+
+```bash
+COMPOSE_FILE=docker-compose.yml:docker-compose.mock.yml docker compose up -d --remove-orphans
+COMPOSE_FILE=docker-compose.yml:docker-compose.mock.yml bash scripts/smoke-check.sh .
+```
+
 ## Service URLs
 
 - Engine: `http://localhost:8080`
