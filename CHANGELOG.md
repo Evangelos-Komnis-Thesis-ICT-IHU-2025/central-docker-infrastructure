@@ -1,4 +1,4 @@
-# [](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/compare/v1.0.0...v) (2026-02-28)
+# [](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/compare/v1.0.0...v) (2026-03-01)
 
 
 ### Bug Fixes
@@ -9,6 +9,7 @@
 ### Features
 
 * **infrastructure:** add Docker Compose ([34b80a9](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/34b80a92b5e8530b6433904ef326d340a7317cbd))
+* **infrastructure:** initialize central ([1b697d8](https://github.com/Evangelos-Komnis-Thesis-ICT-IHU-2025/central-docker-infrastructure/commit/1b697d8e029396e2288af5c8a253bccc49cb31de))
 
 
 
