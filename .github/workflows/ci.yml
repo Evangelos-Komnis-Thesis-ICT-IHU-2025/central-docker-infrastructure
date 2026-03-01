@@ -121,7 +121,7 @@ jobs:
       - name: Wait for service readiness
         run: |
           set -euo pipefail
-          bash infrastructure/scripts/smoke-check.sh
+          bash infrastructure/scripts/smoke-check.sh "${{ steps.paths.outputs.infra_dir }}"
 
       - name: Ensure no container exited unexpectedly
         working-directory: ${{ steps.paths.outputs.infra_dir }}
