@@ -1,150 +1,79 @@
-# SCORM Engine Central Infrastructure
+# SCORM Platform Infrastructure
 
-Production-ready Docker Compose foundation for SCORM Engine platform services:
-- Elasticsearch (single node, dev profile)
+Docker Compose stack for:
+- `engine` (Spring Boot)
+- `player` (Node/TypeScript)
+- `lms` (Laravel example client)
+- Postgres
+- Redis
+- MinIO (+ bucket init)
+- Elasticsearch
+- Logstash
 - Kibana
-- MinIO (S3-compatible object storage)
-- Nginx reverse proxy
 
-All services join the shared external network `scorm-network` so external repositories (backend, player, future microservices) can communicate using container DNS names.
+All services run on Docker network `scorm-network`.
 
-## Repository Structure
-
-```text
-infrastructure/
-  docker-compose.yml
-  .env
-  nginx/
-    nginx.conf
-  README.md
-```
-
-## Prerequisites
-
-- Linux host
-- Docker Engine v24+
-- Docker Compose v2+
-
-## Quick Start
-
-1. Create the shared external network once:
+## Quick start
 
 ```bash
-docker network create scorm-network
+cp .env.example .env
+docker compose up --build
 ```
 
-2. Review and adjust environment variables:
+## Local validation helpers
 
 ```bash
-cd infrastructure
-cat .env
+# Validate env structure and required keys
+bash scripts/validate-env.sh .
+
+# Smoke-check exposed and internal services after compose up
+bash scripts/smoke-check.sh
 ```
 
-3. Start the stack:
+## CI modes
+
+- `push` to `master`: full integration using real `scorm-engine`, `player`, and `example-lms-client` repositories.
+- `pull_request`: mock integration using `docker-compose.mock.yml` to avoid cross-repo checkout dependency.
+
+Run mock mode locally:
 
 ```bash
-docker compose up -d --build
+COMPOSE_FILE=docker-compose.yml:docker-compose.mock.yml docker compose up -d --remove-orphans
+COMPOSE_FILE=docker-compose.yml:docker-compose.mock.yml bash scripts/smoke-check.sh .
 ```
 
-4. Verify running services:
+## Service URLs
 
-```bash
-docker compose ps
-```
-
-## Service Endpoints
-
-- Kibana UI: `http://localhost:5601`
+- Engine: `http://localhost:8080`
+- Engine Swagger: `http://localhost:8080/swagger-ui`
+- Player: `http://localhost:3000`
+- LMS: `http://localhost:8000`
+- Postgres: `localhost:5432`
+- Redis: `localhost:6379`
 - MinIO API: `http://localhost:9000`
 - MinIO Console: `http://localhost:9001`
-- Nginx gateway: `http://localhost`
+- Elasticsearch: `http://localhost:9200`
+- Kibana: `http://localhost:5601`
 
-Notes:
-- Elasticsearch is intentionally internal-only and is not bound to host ports.
-- Nginx includes proxy routes for future backend/player integration.
+## Logs
 
-## Connecting External Repositories
+`engine`, `player`, and `lms` containers use GELF docker logging driver to send logs to Logstash (`udp://127.0.0.1:12201` from Docker host), then to Elasticsearch index `scorm-logs-YYYY.MM.dd`.
 
-In backend/player (separate repositories), attach services to the same external network:
+## Data volumes
 
-```yaml
-networks:
-  scorm-network:
-    external: true
-    name: scorm-network
-```
+- `scorm_postgres_data`
+- `scorm_redis_data`
+- `scorm_minio_data`
+- `scorm_es_data`
+- `scorm_player_cache`
 
-Then join the service:
+## LMS notes
 
-```yaml
-services:
-  backend:
-    image: your-org/scorm-backend:latest
-    networks:
-      - scorm-network
-```
-
-Service-to-service calls use container DNS names, for example:
-- Backend -> Elasticsearch: `http://elasticsearch:9200`
-- Backend -> MinIO: `http://minio:9000`
-- Nginx -> Backend: `http://backend:8080`
-- Nginx -> Player: `http://player:3000`
-
-## Logging Strategy (Structured Logs -> Elasticsearch)
-
-Recommended approach for backend and future services:
-
-1. Emit structured JSON logs from application code.
-2. Use consistent fields (example):
-   - `@timestamp`
-   - `service.name`
-   - `service.version`
-   - `environment`
-   - `trace.id`
-   - `span.id`
-   - `log.level`
-   - `message`
-3. Ship logs with one of these patterns:
-   - Direct application appenders/clients to Elasticsearch (`http://elasticsearch:9200`)
-   - Sidecar/agent forwarder (Fluent Bit, Filebeat, Vector)
-4. Create Kibana index patterns/data views (for example `scorm-*`).
-
-Example index naming convention:
-- `scorm-backend-YYYY.MM.DD`
-- `scorm-player-YYYY.MM.DD`
-
-## Scaling
-
-Horizontal scaling examples:
-
-```bash
-# Scale stateless services if enabled
-docker compose up -d --scale backend=3 --scale player=2
-```
-
-Scaling considerations:
-- Keep Nginx as the single ingress or place it behind a cloud load balancer.
-- Run Elasticsearch as multi-node cluster in production.
-- Use external managed object storage or distributed MinIO for HA.
-
-## Production Considerations
-
-- Enable TLS termination (Nginx + certificates).
-- Enable authentication and authorization for Elasticsearch/Kibana.
-- Use strong secrets from a secret manager (not plaintext `.env`).
-- Restrict MinIO exposure via firewall/VPN.
-- Add backup policies for Elasticsearch data and MinIO buckets.
-- Add observability: metrics, tracing, alerting, log retention lifecycle.
-- Pin and regularly patch container image versions.
-
-## Stop / Cleanup
-
-```bash
-docker compose down
-```
-
-Remove volumes only if you want to delete persisted data:
-
-```bash
-docker compose down -v
-```
+- The `lms` service mounts:
+  - `../../example-lms-client/lms-laravel`
+- The SCORM SDK dependency is resolved by Composer from GitHub (`ihu/scorm-engine-sdk`), pinned by the LMS `composer.lock`.
+- On startup it will:
+  - install Composer dependencies (if missing),
+  - auto-discover Laravel packages,
+  - run migrations on local SQLite file,
+  - auto-mint `SCORM_ENGINE_ADMIN_TOKEN` from `engine` via `/api/v1/auth/dev-token` when token is not provided.

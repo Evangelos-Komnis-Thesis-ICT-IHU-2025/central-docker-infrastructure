@@ -48,29 +48,7 @@ jobs:
       - name: Validate .env file structure
         run: |
           set -euo pipefail
-
-          ENV_FILE="${{ steps.paths.outputs.infra_dir }}/.env"
-          test -f "$ENV_FILE"
-
-          if grep -nEv '^[[:space:]]*(#.*)?$|^[A-Za-z_][A-Za-z0-9_]*=.*$' "$ENV_FILE"; then
-            echo "Invalid line(s) found in $ENV_FILE"
-            exit 1
-          fi
-
-          required_keys=(
-            ELASTIC_VERSION
-            MINIO_IMAGE
-            MINIO_ROOT_USER
-            MINIO_ROOT_PASSWORD
-          )
-
-          for key in "${required_keys[@]}"; do
-            value="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d'=' -f2- || true)"
-            if [ -z "${value}" ]; then
-              echo "Missing or empty required key in .env: ${key}"
-              exit 1
-            fi
-          done
+          bash infrastructure/scripts/validate-env.sh "${{ steps.paths.outputs.infra_dir }}"
 
       - name: Validate Nginx configuration
         run: |
