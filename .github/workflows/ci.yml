@@ -136,7 +136,11 @@ jobs:
         working-directory: ${{ steps.paths.outputs.infra_dir }}
         run: |
           set -euo pipefail
-          docker compose up -d --build --remove-orphans
+          if [ "${{ steps.mode.outputs.mode }}" = "mock" ]; then
+            docker compose up -d --no-build --remove-orphans
+          else
+            docker compose up -d --build --remove-orphans
+          fi
 
       - name: Wait for service readiness
         run: |
