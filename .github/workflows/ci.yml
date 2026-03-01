@@ -108,11 +108,6 @@ jobs:
           repository: ${{ github.repository_owner }}/example-lms-client
           path: example-lms-client
 
-      - name: Create external Docker network
-        run: |
-          set -euo pipefail
-          docker network create scorm-network || true
-
       - name: Start infrastructure stack
         working-directory: ${{ steps.paths.outputs.infra_dir }}
         env:
