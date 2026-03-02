@@ -15,7 +15,6 @@ if [ ! -f "${ENV_FILE}" ]; then
   fi
 fi
 
-# Reject malformed non-comment, non-empty lines.
 if grep -nEv '^[[:space:]]*(#.*)?$|^[A-Za-z_][A-Za-z0-9_]*=.*$' "${ENV_FILE}"; then
   echo "Invalid line(s) found in ${ENV_FILE}"
   exit 1

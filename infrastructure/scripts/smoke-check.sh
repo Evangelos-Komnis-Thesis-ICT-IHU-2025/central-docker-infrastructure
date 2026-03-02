@@ -62,22 +62,18 @@ service_running() {
   compose ps --status running --services | grep -qx "${service}"
 }
 
-# Pull curl image once for internal network checks.
 docker pull curlimages/curl:8.12.1 >/dev/null
 
-# Elasticsearch is internal only; check from a container on scorm-network.
 retry "Elasticsearch internal reachability" 40 3 \
   docker run --rm --network scorm-network curlimages/curl:8.12.1 \
   sh -c "curl -fsS http://elasticsearch:9200 >/dev/null"
 
-# Verify services are running before endpoint probes.
 retry "Engine container running" 90 2 service_running engine
 retry "Player container running" 90 2 service_running player
 retry "LMS container running" 120 2 service_running lms
 retry "Kibana container running" 120 2 service_running kibana
 retry "MinIO container running" 60 2 service_running minio
 
-# Probe service endpoints from inside the compose network.
 retry "Engine API" 80 5 \
   docker run --rm --network scorm-network curlimages/curl:8.12.1 \
   sh -c "curl -fsS -o /dev/null http://engine:8080/api/v1/health"
