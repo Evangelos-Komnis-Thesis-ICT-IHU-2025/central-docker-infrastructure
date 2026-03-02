@@ -23,10 +23,8 @@ docker compose up --build
 ## Local validation helpers
 
 ```bash
-# Validate env structure and required keys
 bash scripts/validate-env.sh .
 
-# Smoke-check exposed and internal services after compose up
 bash scripts/smoke-check.sh
 ```
 
